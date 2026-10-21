@@ -28,7 +28,7 @@ import {
 } from '../guards.js'
 import { inlineRemoteCss } from './cssInliner.js'
 import { nextID } from '../../modules/constructedStyleSheets.js'
-import { SanitizeLevel } from '../sanitizer.js'
+import { SanitizeLevel, stringWiper } from '../sanitizer.js'
 import { parentNode, previousSibling, nextSibling, firstChild } from '../untaintedDom.js'
 
 const iconCache = {}
@@ -515,7 +515,11 @@ export default abstract class Observer {
       this.app.send(SetCSSDataURLBased(id, data, this.app.getBaseHref()))
       return
     }
-    data = this.app.sanitizer.sanitize(id, data)
+    // A textarea's text child mirrors its value (React sets defaultValue on every render),
+    // which would bypass input masking. Its value is recorded by the input module instead.
+    data = hasTag(parentElement, 'textarea')
+      ? stringWiper(data)
+      : this.app.sanitizer.sanitize(id, data)
     this.app.send(SetNodeData(id, data))
   }
 
