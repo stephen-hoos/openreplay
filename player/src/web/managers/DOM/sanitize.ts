@@ -188,3 +188,70 @@ export function sanitizeCssText(cssText: string): string {
   CSS_SCRIPT_CONSTRUCTS.lastIndex = 0;
   return cssText.replace(CSS_SCRIPT_CONSTRUCTS, '/* blocked */');
 }
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Elements allowed inside a reconstructed sprite `<symbol>`. Sprite markup comes
+ * straight from the recording (attacker-controlled) and is built in the *app*
+ * document before it is handed to the replay, so it must not go through
+ * innerHTML: the HTML fragment parser lets `<img onerror>` & co. break out of
+ * SVG context and run in the app origin. Anything not listed here (script,
+ * foreignObject, animate/set, HTML elements, ...) is dropped with its subtree.
+ */
+const SPRITE_ALLOWED_TAGS = new Set([
+  'g', 'defs', 'path', 'circle', 'ellipse', 'line', 'polyline', 'polygon',
+  'rect', 'text', 'tspan', 'textPath', 'use', 'symbol', 'image', 'style',
+  'desc', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'mask',
+  'pattern', 'marker', 'filter', 'feBlend', 'feColorMatrix',
+  'feComponentTransfer', 'feComposite', 'feConvolveMatrix',
+  'feDiffuseLighting', 'feDisplacementMap', 'feDistantLight', 'feDropShadow',
+  'feFlood', 'feFuncA', 'feFuncB', 'feFuncG', 'feFuncR', 'feGaussianBlur',
+  'feImage', 'feMerge', 'feMergeNode', 'feMorphology', 'feOffset',
+  'fePointLight', 'feSpecularLighting', 'feSpotLight', 'feTile',
+  'feTurbulence',
+]);
+
+/**
+ * Copy the children of a parsed (inert) SVG element into `target`, keeping only
+ * allow-listed SVG elements and attributes that pass `sanitizeAttribute`.
+ */
+export function copySanitizedSvgChildren(source: Element, target: Element) {
+  const doc = target.ownerDocument;
+  source.childNodes.forEach((child) => {
+    if (child.nodeType === Node.TEXT_NODE) {
+      const text = child.textContent || '';
+      target.appendChild(
+        doc.createTextNode(
+          target.localName === 'style' ? sanitizeCssText(text) : text,
+        ),
+      );
+      return;
+    }
+    if (child.nodeType !== Node.ELEMENT_NODE) {
+      return;
+    }
+    const el = child as Element;
+    if (el.namespaceURI !== SVG_NS || !SPRITE_ALLOWED_TAGS.has(el.localName)) {
+      return;
+    }
+    const copy = doc.createElementNS(SVG_NS, el.localName);
+    Array.from(el.attributes).forEach((attr) => {
+      const sanitized = sanitizeAttribute(el.localName, attr.name, attr.value);
+      if (sanitized === null) {
+        return;
+      }
+      const value =
+        attr.name.toLowerCase() === 'style'
+          ? sanitizeCssText(sanitized.value)
+          : sanitized.value;
+      if (attr.namespaceURI) {
+        copy.setAttributeNS(attr.namespaceURI, attr.name, value);
+      } else {
+        copy.setAttribute(attr.name, value);
+      }
+    });
+    copySanitizedSvgChildren(el, copy);
+    target.appendChild(copy);
+  });
+}

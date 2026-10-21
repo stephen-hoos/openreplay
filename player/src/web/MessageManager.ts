@@ -9,6 +9,7 @@ import ListWalker from '../common/ListWalker';
 import { INACTIVITY_SETTING_KEY as inactivitySettingKey } from '../constants';
 
 import MouseMoveManager from './managers/MouseMoveManager';
+import { copySanitizedSvgChildren } from './managers/DOM/sanitize';
 
 import ActivityManager from './managers/ActivityManager';
 import TabClosingManager from './managers/TabClosingManager';
@@ -603,7 +604,8 @@ function handleSprites(
         'viewBox',
         originalSvg.getAttribute('viewBox') || '0 0 24 24',
       );
-      symbol.innerHTML = originalSvg.innerHTML;
+      // Never innerHTML: this runs in the app document, outside the replay sandbox.
+      copySanitizedSvgChildren(originalSvg, symbol);
 
       spriteMapSvg.appendChild(symbol);
       msg.value = `#${symbolId}`;
