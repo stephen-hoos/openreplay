@@ -117,7 +117,8 @@ func (v *ImageStorage) writeToDisk(payload interface{}) {
 
 	dir := filepath.Join(v.basePath, fmt.Sprintf("%d", task.sessionID))
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		v.log.Fatal(task.ctx, "can't create a dir, err: %s", err)
+		v.log.Error(task.ctx, "can't create a dir, err: %s", err)
+		return
 	}
 	if !strings.HasSuffix(task.name, ".frames") {
 		task.name = task.name + ".frames"
@@ -130,7 +131,8 @@ func (v *ImageStorage) writeToDisk(payload interface{}) {
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		v.log.Fatal(task.ctx, "can't open frames file, err: %s", err)
+		v.log.Error(task.ctx, "can't open frames file, err: %s", err)
+		return
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
@@ -139,7 +141,8 @@ func (v *ImageStorage) writeToDisk(payload interface{}) {
 	}()
 
 	if _, err := io.Copy(f, task.image); err != nil {
-		v.log.Fatal(task.ctx, "can't write frame to disk, err: %s", err)
+		v.log.Error(task.ctx, "can't write frame to disk, err: %s", err)
+		return
 	}
 
 	v.metrics.RecordCanvasImageSize(float64(task.image.Len()))

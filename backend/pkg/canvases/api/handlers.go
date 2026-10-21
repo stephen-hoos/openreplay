@@ -54,7 +54,9 @@ func (h *handlersImpl) GetAll() []*api.Description {
 // framesFileName is the only accepted shape for a client-supplied frames file name.
 // Go's multipart parser already strips directory components (RFC 7578 §4.2);
 // this keeps the guarantee explicit instead of relying on stdlib behaviour.
-var framesFileName = regexp.MustCompile(`^[0-9A-Za-z_.-]+\.frames$`)
+// Names end up as file names on disk; keep them well under the 255-byte filesystem limit.
+var framesFileName = regexp.MustCompile(`^[0-9A-Za-z_.-]{1,100}\.frames$`)
+var canvasBaseName = regexp.MustCompile(`^[0-9A-Za-z_.-]{1,100}$`)
 
 func (h *handlersImpl) imagesUploaderHandlerWeb(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
@@ -148,6 +150,10 @@ func (h *handlersImpl) imagesUploaderHandlerWeb(w http.ResponseWriter, r *http.R
 			baseName, ts, err := frames.ParseFrameName(fileName)
 			if err != nil {
 				h.log.Error(r.Context(), "can't parse canvas name %s: %s", fileName, err)
+				continue
+			}
+			if !canvasBaseName.MatchString(baseName) {
+				h.log.Error(r.Context(), "invalid canvas name: %s", fileName)
 				continue
 			}
 			if msg.Name == "" {

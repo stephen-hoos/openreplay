@@ -102,12 +102,14 @@ func (v *ImageStorage) writeToDisk(payload interface{}) {
 	path += strconv.FormatUint(task.sessionID, 10) + "/"
 
 	if err := os.MkdirAll(path, 0755); err != nil {
-		v.log.Fatal(task.ctx, "error creating directories: %v", err)
+		v.log.Error(task.ctx, "error creating directories: %v", err)
+		return
 	}
 
 	f, err := os.OpenFile(path+"replay.frames", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		v.log.Fatal(task.ctx, "can't open frames file, err: %s", err)
+		v.log.Error(task.ctx, "can't open frames file, err: %s", err)
+		return
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
@@ -116,7 +118,8 @@ func (v *ImageStorage) writeToDisk(payload interface{}) {
 	}()
 
 	if _, err := io.Copy(f, bytes.NewBuffer(task.data)); err != nil {
-		v.log.Fatal(task.ctx, "can't write frame to disk, err: %s", err)
+		v.log.Error(task.ctx, "can't write frame to disk, err: %s", err)
+		return
 	}
 
 	v.metrics.IncreaseFrames(images.FrameSaved)

@@ -114,16 +114,25 @@ func (e *handlersImpl) imagesUploaderHandlerMobile(w http.ResponseWriter, r *htt
 			}
 			defer uncompressedStream.Close()
 
+			// Bound decompression: the request size limit does not limit what a gzip bomb expands to.
+			// Anything above the queue message limit could not be produced anyway.
+			sizeLimit := int64(e.cfg.MessageSizeLimit)
+			limitedStream := io.LimitReader(uncompressedStream, sizeLimit+1)
+
 			framesBuf := bytes.NewBuffer([]byte{})
 			var fileName string
 
 			if isFrames {
-				if _, err = framesBuf.ReadFrom(uncompressedStream); err != nil {
+				if _, err = framesBuf.ReadFrom(limitedStream); err != nil {
 					e.responser.ResponseWithError(e.log, r.Context(), w, http.StatusInternalServerError, err, startTime, r.URL.Path, 0)
 					return
 				}
+				if int64(framesBuf.Len()) > sizeLimit {
+					e.responser.ResponseWithError(e.log, r.Context(), w, http.StatusRequestEntityTooLarge, api.ErrBodyTooLarge, startTime, r.URL.Path, 0)
+					return
+				}
 			} else {
-				tarReader := tar.NewReader(uncompressedStream)
+				tarReader := tar.NewReader(limitedStream)
 				for {
 					header, err := tarReader.Next()
 					if err != nil {
@@ -134,6 +143,10 @@ func (e *handlersImpl) imagesUploaderHandlerMobile(w http.ResponseWriter, r *htt
 						return
 					}
 
+					if header.Size < 0 || int64(framesBuf.Len())+header.Size > sizeLimit {
+						e.responser.ResponseWithError(e.log, r.Context(), w, http.StatusRequestEntityTooLarge, api.ErrBodyTooLarge, startTime, r.URL.Path, 0)
+						return
+					}
 					if header.Typeflag != tar.TypeReg {
 						e.log.Error(r.Context(), "ExtractTarGz: unknown type: %d in %s", header.Typeflag, header.Name)
 						continue
