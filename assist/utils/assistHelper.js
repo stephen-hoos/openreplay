@@ -3,6 +3,7 @@ const uaParser = require('ua-parser-js');
 const {geoip} = require('./geoIP');
 const {extractPeerId} = require('./helper');
 const {logger} = require('./logger');
+const {verifySessionToken} = require('./sessionToken');
 
 const IDENTITIES = {agent: 'agent', session: 'session'};
 const EVENTS_DEFINITION = {
@@ -63,8 +64,16 @@ const extractSessionInfo = function (socket) {
     if (socket.handshake.query.sessionInfo !== undefined) {
         logger.debug(`received headers: ${socket.handshake.headers}`);
 
-        socket.handshake.query.sessionInfo = JSON.parse(socket.handshake.query.sessionInfo);
-        socket.handshake.query.sessionInfo = {...BASE_sessionInfo, ...socket.handshake.query.sessionInfo};
+        let sessionInfo = {};
+        try {
+            sessionInfo = JSON.parse(socket.handshake.query.sessionInfo);
+        } catch (e) {
+            logger.debug(`invalid sessionInfo: ${e}`);
+        }
+        if (sessionInfo === null || typeof sessionInfo !== 'object' || Array.isArray(sessionInfo)) {
+            sessionInfo = {};
+        }
+        socket.handshake.query.sessionInfo = {...BASE_sessionInfo, ...sessionInfo};
 
         let ua = uaParser(socket.handshake.headers['user-agent']);
         socket.handshake.query.sessionInfo.userOs = ua.os.name || null;
@@ -124,9 +133,35 @@ function generateAccessToken(payload) {
 
 const JWT_TOKEN_PREFIX = "Bearer ";
 
-function check(socket, next) {
-    if (socket.handshake.query.identity === IDENTITIES.session) {
+// Session (tracker) sockets must prove they own the session they join with the
+// tracker session token. Set ASSIST_REQUIRE_SESSION_TOKEN=false only while
+// rolling out trackers that send it.
+const REQUIRE_SESSION_TOKEN = process.env.ASSIST_REQUIRE_SESSION_TOKEN !== 'false';
+
+function checkSession(socket, next) {
+    if (!REQUIRE_SESSION_TOKEN) {
         return next();
+    }
+    if (!process.env.TOKEN_SECRET) {
+        logger.error('TOKEN_SECRET is not set, refusing session sockets');
+        return next(new Error('Authentication error'));
+    }
+    const {sessionId} = extractPeerId(socket.handshake.query.peerId);
+    const tokenSessionId = verifySessionToken(socket.handshake.auth?.sessionToken, process.env.TOKEN_SECRET);
+    if (!sessionId || tokenSessionId === null || tokenSessionId !== String(sessionId)) {
+        logger.debug(`invalid session token for peerId: ${socket.handshake.query.peerId}`);
+        return next(new Error('Authentication error'));
+    }
+    return next();
+}
+
+function check(socket, next) {
+    if (typeof socket.handshake.query.peerId !== 'string' || !extractPeerId(socket.handshake.query.peerId).sessionId) {
+        logger.debug(`missing or malformed peerId`);
+        return next(new Error('Authentication error'));
+    }
+    if (socket.handshake.query.identity === IDENTITIES.session) {
+        return checkSession(socket, next);
     }
     if (socket.handshake.query.peerId && socket.handshake.auth && socket.handshake.auth.token) {
         let token = socket.handshake.auth.token;

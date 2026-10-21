@@ -686,6 +686,8 @@ export default class Assist {
       extraHeaders: {
         sessionId,
       },
+      // Proves to the assist server that this socket owns the session. Read on every (re)connect.
+      auth: (cb) => cb({ sessionToken: this.app.session.getSessionToken() }),
       transports: ["websocket"],
       withCredentials: true,
       reconnection: true,

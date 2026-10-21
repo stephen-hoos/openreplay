@@ -22,6 +22,14 @@ const {
 const {logger} = require('./logger');
 const deepMerge = require('@fastify/deepmerge')({all: true});
 
+const agentsRoom = (roomId) => `${roomId}:agents`;
+
+// Events only the server may emit; a session socket sending one is spoofing.
+const SERVER_ONLY_EVENTS = new Set([
+    ...Object.values(EVENTS_DEFINITION.emit),
+    ...Object.values(EVENTS_DEFINITION.server),
+]);
+
 const findSessionSocketId = async (io, roomId, tabId) => {
     let pickFirstSession = tabId === undefined;
     const connected_sockets = await io.in(roomId).fetchSockets();
@@ -109,13 +117,21 @@ async function onConnect(socket) {
         logger.debug(`notifying new agent about no SESSIONS with peerId:${socket.handshake.query.peerId}`);
         io.to(socket.id).emit(EVENTS_DEFINITION.emit.NO_SESSIONS);
     }
-    await socket.join(socket.handshake.query.roomId);
+    // Agents also join a dedicated room so session data is relayed to agents only, never to other session sockets.
+    await socket.join(socket.handshake.query.identity === IDENTITIES.agent
+        ? [socket.handshake.query.roomId, agentsRoom(socket.handshake.query.roomId)]
+        : socket.handshake.query.roomId);
 
     logger.debug(`${socket.id} joined room:${socket.handshake.query.roomId}, as:${socket.handshake.query.identity}, connections:${agentsCount + tabsCount + 1}`)
 
     if (socket.handshake.query.identity === IDENTITIES.agent) {
         if (socket.handshake.query.agentInfo !== undefined) {
-            socket.handshake.query.agentInfo = JSON.parse(socket.handshake.query.agentInfo);
+            try {
+                socket.handshake.query.agentInfo = JSON.parse(socket.handshake.query.agentInfo);
+            } catch (e) {
+                logger.debug(`invalid agentInfo: ${e}`);
+                socket.handshake.query.agentInfo = {};
+            }
             socket.handshake.query.agentID = socket.handshake.query.agentInfo.id;
             // Stats
             startAssist(socket, socket.handshake.query.agentID);
@@ -194,7 +210,12 @@ async function onWebrtcAgentHandler(socket, ...args) {
     if (socket.handshake.query.identity === IDENTITIES.agent) {
         const agentIdToConnect = args[0]?.data?.toAgentId;
         logger.debug(`${socket.id} sent webrtc event to agent:${agentIdToConnect}`);
-        if (agentIdToConnect && socket.handshake.sessionData.AGENTS_CONNECTED.includes(agentIdToConnect)) {
+        if (!agentIdToConnect) {
+            return;
+        }
+        // Only relay to an agent connected to the same session.
+        const agents = await getServer().in(agentsRoom(socket.handshake.query.roomId)).fetchSockets();
+        if (agents.some(s => s.id === agentIdToConnect)) {
             socket.to(agentIdToConnect).emit(EVENTS_DEFINITION.listen.WEBRTC_AGENT_CALL, args[0]);
         }
     }
@@ -207,8 +228,12 @@ async function onAny(socket, eventName, ...args) {
     }
     args[0] = updateSessionData(socket, args[0])
     if (socket.handshake.query.identity === IDENTITIES.session) {
-        logger.debug(`received event:${eventName}, from:${socket.handshake.query.identity}, sending message to room:${socket.handshake.query.roomId}`);
-        socket.to(socket.handshake.query.roomId).emit(eventName, args[0]);
+        if (SERVER_ONLY_EVENTS.has(eventName)) {
+            logger.debug(`dropping server-only event:${eventName} from session socket:${socket.id}`);
+            return
+        }
+        logger.debug(`received event:${eventName}, from:${socket.handshake.query.identity}, sending message to agents of room:${socket.handshake.query.roomId}`);
+        socket.to(agentsRoom(socket.handshake.query.roomId)).emit(eventName, args[0]);
     } else {
         // Stats
         handleEvent(eventName, socket, args[0]);
