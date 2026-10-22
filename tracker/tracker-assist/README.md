@@ -172,6 +172,10 @@ onCallStart: () => {
 
 ## Troubleshooting
 
+### Assist sessions do not connect after upgrading the Assist server
+
+Self-hosted Assist servers authenticate tracker connections with the session token. Trackers older than this version do not send it, so a server that requires it rejects them. Update `@openreplay/tracker-assist`, or see [Assist Session Authentication](https://github.com/openreplay/openreplay/blob/main/docs/ASSIST_SESSION_AUTH.md) for configuration and a staged rollout. This version also works with older Assist servers.
+
 ### Critical dependency: the request of a dependency is an expression
 
 Please apply this [workaround](https://github.com/peers/peerjs/issues/630#issuecomment-910028230) if you face the below error when compiling:

@@ -1,3 +1,10 @@
+## Unreleased
+
+- send the tracker session token when connecting to Assist, so the Assist
+  server can verify the socket belongs to the session. Required by Assist
+  servers with session authentication (see `docs/ASSIST_SESSION_AUTH.md`);
+  older servers ignore it
+
 ## 11.0.20
 
 - fixes towards stability of connection on restarts, page visits etc
