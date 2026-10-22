@@ -174,6 +174,27 @@ export async function parseUseEl(
   }
 }
 
+// Attributes that carry user-visible or app data rather than layout. On masked (obscured/hidden)
+// elements they are masked like the element's text.
+const TEXT_ATTRIBUTES = new Set([
+  'title',
+  'alt',
+  'placeholder',
+  'label',
+  'value',
+  'content',
+  'aria-label',
+  'aria-description',
+  'aria-valuetext',
+  'aria-placeholder',
+  'aria-roledescription',
+])
+
+function isTextAttribute(name: string): boolean {
+  const lname = name.toLowerCase()
+  return TEXT_ATTRIBUTES.has(lname) || lname.startsWith('data-')
+}
+
 function isIgnored(node: Node): boolean {
   if (isCommentNode(node)) {
     return true
@@ -425,6 +446,9 @@ export default abstract class Observer {
         }
         this.app.send(SetNodeAttributeURLBased(id, name, value!, this.app.getBaseHref()))
       } else {
+        if (isTextAttribute(name) && this.app.sanitizer.isObscured(id)) {
+          value = stringWiper(value!)
+        }
         this.app.attributeSender.sendSetAttribute(id, name, value!)
       }
       return
@@ -500,6 +524,9 @@ export default abstract class Observer {
     }
     if (['alt', 'placeholder'].includes(name) && this.app.sanitizer.privateMode) {
       value = value.replaceAll(/./g, '*')
+    }
+    if (isTextAttribute(name) && this.app.sanitizer.isObscured(id)) {
+      value = stringWiper(value)
     }
     this.app.attributeSender.sendSetAttribute(id, name, value)
   }
