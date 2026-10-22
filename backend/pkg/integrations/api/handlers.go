@@ -78,6 +78,9 @@ type IntegrationRequest struct {
 func (e *handlersImpl) createIntegration(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	bodySize := 0
+	if !e.requireAdmin(w, r, startTime) {
+		return
+	}
 
 	bodyBytes, err := api.ReadBody(e.log, w, r, e.jsonSizeLimit)
 	if err != nil {
@@ -112,6 +115,9 @@ func (e *handlersImpl) createIntegration(w http.ResponseWriter, r *http.Request)
 func (e *handlersImpl) getIntegration(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	bodySize := 0
+	if !e.requireAdmin(w, r, startTime) {
+		return
+	}
 
 	integration, project, err := getIntegrationsArgs(r)
 	if err != nil {
@@ -134,6 +140,9 @@ func (e *handlersImpl) getIntegration(w http.ResponseWriter, r *http.Request) {
 func (e *handlersImpl) updateIntegration(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	bodySize := 0
+	if !e.requireAdmin(w, r, startTime) {
+		return
+	}
 
 	bodyBytes, err := api.ReadBody(e.log, w, r, e.jsonSizeLimit)
 	if err != nil {
@@ -164,6 +173,9 @@ func (e *handlersImpl) updateIntegration(w http.ResponseWriter, r *http.Request)
 func (e *handlersImpl) deleteIntegration(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	bodySize := 0
+	if !e.requireAdmin(w, r, startTime) {
+		return
+	}
 
 	integration, project, err := getIntegrationsArgs(r)
 	if err != nil {
@@ -202,4 +214,13 @@ func (e *handlersImpl) getIntegrationData(w http.ResponseWriter, r *http.Request
 
 	resp := map[string]string{"url": url}
 	e.responser.ResponseWithJSON(e.log, r.Context(), w, resp, startTime, r.URL.Path, bodySize)
+}
+
+// requireAdmin restricts integration settings, which hold third-party credentials, to owners and admins.
+func (e *handlersImpl) requireAdmin(w http.ResponseWriter, r *http.Request, startTime time.Time) bool {
+	if currUser := api.GetUser(r); currUser == nil || !currUser.IsAdmin {
+		e.responser.ResponseWithError(e.log, r.Context(), w, http.StatusForbidden, fmt.Errorf("admin role required"), startTime, r.URL.Path, 0)
+		return false
+	}
+	return true
 }

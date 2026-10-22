@@ -158,8 +158,8 @@ def change_client_password(resqponse: JSONResponse, data: schemas.EditUserPasswo
     return r
 
 
-@app.post('/integrations/slack', tags=['integrations'])
-@app.put('/integrations/slack', tags=['integrations'])
+@app.post('/integrations/slack', tags=['integrations'], dependencies=[OR_role("owner", "admin")])
+@app.put('/integrations/slack', tags=['integrations'], dependencies=[OR_role("owner", "admin")])
 def add_slack_integration(data: schemas.AddCollaborationSchema,
                           context: schemas.CurrentContext = Depends(OR_context)):
     n = Slack.add(tenant_id=context.tenant_id, data=data)
@@ -170,7 +170,7 @@ def add_slack_integration(data: schemas.AddCollaborationSchema,
     return {"data": n}
 
 
-@app.post('/integrations/slack/{integrationId}', tags=['integrations'])
+@app.post('/integrations/slack/{integrationId}', tags=['integrations'], dependencies=[OR_role("owner", "admin")])
 def edit_slack_integration(integrationId: int, data: schemas.EditCollaborationSchema = Body(...),
                            context: schemas.CurrentContext = Depends(OR_context)):
     if len(data.url) > 0:

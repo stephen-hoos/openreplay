@@ -190,3 +190,10 @@ def __trigger(hook, data):
             except:
                 logger.info("no response found")
         return response
+
+
+def hide_secrets(webhooks, context: schemas.CurrentContext):
+    # Webhook URLs and auth headers are credentials; only owners and admins manage them.
+    if context.is_owner or context.is_admin:
+        return webhooks
+    return [{k: v for k, v in w.items() if k not in ("endpoint", "authHeader")} for w in webhooks]

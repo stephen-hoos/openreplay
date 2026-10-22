@@ -37,6 +37,8 @@ type User struct {
 	IsEnterprise   bool            `json:"isEnterprise"`
 	AuthMethod     string
 	Projects       map[uint32]bool `json:"-"`
+	// IsAdmin is true for the owner and admin roles.
+	IsAdmin        bool            `json:"-"`
 }
 
 func (u *User) HasPermission(perm string) bool {

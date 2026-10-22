@@ -33,4 +33,4 @@ def refresh_spot_login(response: JSONResponse, context: schemas.CurrentContext =
 
 @app.get('/integrations/slack/channels', tags=["integrations"])
 def get_slack_channels(context: schemas.CurrentContext = Depends(OR_context)):
-    return {"data": webhook.get_by_type(tenant_id=context.tenant_id, webhook_type=schemas.WebhookType.SLACK)}
+    return {"data": webhook.hide_secrets(webhook.get_by_type(tenant_id=context.tenant_id, webhook_type=schemas.WebhookType.SLACK), context)}
