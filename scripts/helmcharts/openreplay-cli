@@ -146,9 +146,10 @@ function log() {
 
 # To run kubeconfig run
 # `KUBECONFIG=/path/to/file openreplay -s`
-[[ -f /etc/rancher/k3s/k3s.yaml ]] && k3s_path="/etc/rancher/k3s/k3s.yaml"
-[[ -f "${HOME}/.kube/config" ]] && local_kube_config_path="${HOME}/.kube/config"
-k3s_path=${k3s_path:-$local_kube_config_path}
+# Prefer the user's kubeconfig: the k3s one is root-only (K3S_KUBECONFIG_MODE=600 in init.sh).
+[[ -r /etc/rancher/k3s/k3s.yaml ]] && k3s_path="/etc/rancher/k3s/k3s.yaml"
+[[ -r "${HOME}/.kube/config" ]] && local_kube_config_path="${HOME}/.kube/config"
+k3s_path=${local_kube_config_path:-$k3s_path}
 export KUBECONFIG=${KUBECONFIG:-$k3s_path}
 [[ -z $KUBECONFIG ]] && log warn "No kubeconfig file found. Exiting"
 log info "Using KUBECONFIG $KUBECONFIG"

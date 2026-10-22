@@ -54,6 +54,18 @@ spec:
             {{- else }}
             value: "{{ .Values.password }}"
             {{- end }}
+          # The backup REST API can create, restore and delete backups: require the ClickHouse credentials.
+          - name: API_USERNAME
+            value: "{{ .Values.username }}"
+          - name: API_PASSWORD
+            {{- if .Values.existingSecret }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.existingSecret }}
+                key: {{ .Values.existingSecretPasswordKey }}
+            {{- else }}
+            value: "{{ .Values.password }}"
+            {{- end }}
           {{- range $key, $value := .Values.backupEnv }}
           - name: "{{ $key }}"
             value: "{{ $value }}"

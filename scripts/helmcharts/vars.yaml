@@ -25,7 +25,9 @@ clickhouse: &clickhouse
   enabled: true
   chHost: clickhouse-openreplay-clickhouse.db.svc.cluster.local
   username: default
-  password: ""
+  # For generating passwords
+  # `openssl rand -hex 20`
+  password: "{{ randAlphaNum 20}}"
   use_tls: false
   service:
     webPort: 8123
@@ -58,6 +60,10 @@ redis: &redis
   enabled: true
   redisHost: "redis-master.db.svc.cluster.local"
   redisPort: "6379"
+  # `usePassword`/`password` configure the database chart, `redisPassword` the services.
+  usePassword: true
+  password: &redisPassword "{{ randAlphaNum 20}}"
+  redisPassword: *redisPassword
 
 minio:
   # Disable this if you use an external object storage service (s3)
@@ -102,7 +108,10 @@ ingress-nginx: &ingress-nginx
         enable-real-ip: "true"
         real-ip-header: "X-Forwarded-For"
         set-real-ip-from: "0.0.0.0/0"
-        ssl-redirect: "false"
+        ssl-redirect: "true"
+        hsts: "true"
+        hsts-max-age: "31536000"
+        hsts-include-subdomains: "false"
         client-max-body-size: "64m"
         client-body-buffer-size: "512k"
         server-tokens: "false"

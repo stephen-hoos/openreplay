@@ -22,10 +22,10 @@ usr=$(whoami)
 # Installing k3s
 function install_k8s() {
     echo "nameserver 1.1.1.1" | sudo tee /etc/k3s-resolv.conf
-    curl -sL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="644" K3S_RESOLV_CONF="/etc/k3s-resolv.conf" INSTALL_K3S_VERSION='v1.31.5+k3s1' INSTALL_K3S_EXEC="--disable=traefik" sh -
+    curl -sL https://get.k3s.io | sudo K3S_KUBECONFIG_MODE="600" K3S_RESOLV_CONF="/etc/k3s-resolv.conf" INSTALL_K3S_VERSION='v1.31.5+k3s1' INSTALL_K3S_EXEC="--disable=traefik" sh -
     [[ -d ~/.kube ]] || mkdir ~/.kube
     sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-    sudo chmod 0644 ~/.kube/config
+    sudo chmod 0600 ~/.kube/config
     sudo chown -R $usr ~/.kube/config
     sleep 10
 }
@@ -121,6 +121,9 @@ function install_openreplay_actions() {
     fi
     sudo cp -rfb ./vars.yaml $openreplay_home_dir
     sudo cp -rf "$(cd ../.. && pwd)" $openreplay_home_dir
+    # vars.yaml holds every secret of the installation: readable only by the installing user.
+    sudo chown $usr $openreplay_home_dir/vars.yaml* $openreplay_code_dir/scripts/helmcharts/vars.yaml
+    sudo chmod 0600 $openreplay_home_dir/vars.yaml* $openreplay_code_dir/scripts/helmcharts/vars.yaml
 }
 
 function main() {

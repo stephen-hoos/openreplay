@@ -119,7 +119,7 @@ Create the environment configuration for REDIS_STRING
       key: redis-password
 {{- else if .redisPassword }}
 - name: REDIS_PASSWORD
-  value: {{ .redisPassword }}
+  value: {{ .redisPassword | quote }}
 {{- end}}
 - name: REDIS_STRING
   value: '{{ $scheme }}://{{ $auth }}{{ .redisHost }}:{{ .redisPort }}'
