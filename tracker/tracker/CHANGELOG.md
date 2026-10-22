@@ -1,5 +1,9 @@
 ## 19.0.0
 
+- textarea contents are masked: their text node mirrors the value (React updates it on every render) and was recorded in plain text, bypassing input masking
+- selected text is masked unless every text node it covers is recorded and unmasked (before, it was sent as is, even from masked regions and in `privateMode`)
+- text attributes (`title`, `alt`, `placeholder`, `aria-label`, `data-*`, …) of masked elements are masked like their text
+- crossdomain: the parent page only listens to child iframes when `crossdomain.enabled` is set, and only accepts messages from iframes on the page; new `crossdomain.childDomains` option restricts which iframe origins may join the session. Children only accept commands from their parent window (and from `parentDomain` when set), and warn when `parentDomain` is `'*'`
 - click rage, dead click, CPU and memory issue detection moved from the backend into the tracker worker; detected issues are sent as issue messages with correct message indexes (#4861)
 - full type definitions for every entry point (`@openreplay/tracker`, `/class`, `/cjs`), checked on publish with `attw`
 - handle the root `<html>` element being replaced during recording (re-announces the document instead of losing the tree)

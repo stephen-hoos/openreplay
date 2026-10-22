@@ -183,6 +183,12 @@ type AppOptions = {
      * @default '*'
      * */
     parentDomain?: string
+    /**
+     * Parent page only: origins (e.g. 'https://widgets.example.com') of the child iframes allowed to
+     * join this session. Children receive the session token, so restrict this when the page embeds
+     * third-party iframes. Any iframe on the page is accepted by default.
+     * */
+    childDomains?: string[]
   }
 
   network?: NetworkOptions
@@ -410,7 +416,14 @@ export default class App {
        * listen for messages from parent window, so we can signal that we're alive
        * */
       window.addEventListener('message', this.parentCrossDomainFrameListener)
-      window.addEventListener('message', this.crossDomainIframeListener)
+      if (this.options.crossdomain?.enabled) {
+        window.addEventListener('message', this.crossDomainIframeListener)
+        if ((this.options.crossdomain.parentDomain ?? '*') === '*') {
+          console.warn(
+            "OpenReplay: crossdomain.parentDomain is '*', so any page that embeds this one receives its recording. Set it to the parent page's origin.",
+          )
+        }
+      }
       this.childPollingInterval = setInterval(() => {
         window.parent.postMessage(
           {
@@ -431,10 +444,12 @@ export default class App {
        * if we get a signal from child iframes, we check for their node_id and send it back,
        * so they can act as if it was just a same-domain iframe
        * */
-      window.addEventListener('message', this.crossDomainIframeListener)
-      // Parent-only: once per minute, log an encoded snapshot of every tracked child
-      // iframe and the freshness of our two-way comms, to debug iframes that go silent.
+      // Only when crossdomain tracking is enabled: children receive the session token and their
+      // messages are merged into this session.
       if (this.options.crossdomain?.enabled) {
+        window.addEventListener('message', this.crossDomainIframeListener)
+        // Parent-only: once per minute, log an encoded snapshot of every tracked child
+        // iframe and the freshness of our two-way comms, to debug iframes that go silent.
         if (this.xdomainDebugInterval) clearInterval(this.xdomainDebugInterval)
         this.xdomainDebugInterval = setInterval(this.emitCrossdomainDebug, 60_000)
       }
@@ -569,6 +584,11 @@ export default class App {
   parentCrossDomainFrameListener = (event: MessageEvent) => {
     const { data } = event
     if (!data || event.source === window) return
+    // Start/stop commands and the session token may only come from the embedding page.
+    const parentDomain = this.options.crossdomain?.parentDomain ?? '*'
+    if (event.source !== window.parent || (parentDomain !== '*' && event.origin !== parentDomain)) {
+      return
+    }
     // Debug: remember the last time the parent talked to us.
     if (
       data.line === proto.startIframe ||
@@ -809,10 +829,26 @@ export default class App {
     }
     this.send(ConsoleLog('info', `[OR_XDOMAIN_DEBUG] ${encoded}`))
   }
+  /** Child iframes may join this session: messages from other windows (openers, popups) or
+   *  origins outside crossdomain.childDomains are ignored. */
+  private isChildFrameMessage(event: MessageEvent): boolean {
+    const childDomains = this.options.crossdomain?.childDomains
+    if (childDomains?.length && !childDomains.includes(event.origin)) {
+      return false
+    }
+    const isSource = (f: HTMLIFrameElement) => f.contentWindow === event.source
+    if (this.pageFrames.some(isSource)) {
+      return true
+    }
+    this.pageFrames = Array.from(document.querySelectorAll('iframe'))
+    return this.pageFrames.some(isSource)
+  }
+
   crossDomainIframeListener = (event: MessageEvent) => {
     if (event.source === window) return
     const { data } = event
     if (!data) return
+    if (!this.isChildFrameMessage(event)) return
     // Debug: remember when we last heard *anything* from this context, and its domain.
     if (data.context) {
       this.frameAnyLastSeen.set(data.context, Date.now())
