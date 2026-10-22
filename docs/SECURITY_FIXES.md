@@ -6,6 +6,7 @@ Related documents:
 
 - [Deployment Hardening](DEPLOYMENT_HARDENING.md): configuration to apply before going live.
 - [Assist Session Authentication](ASSIST_SESSION_AUTH.md): configuration and rollout of the Assist change.
+- [Installing OpenReplay with the Security Fixes](INSTALL_SECURITY_FIXES.md): building the images and installing.
 
 ## Overview
 

@@ -1,0 +1,99 @@
+# Builds the images changed on the security-fixes branch and pushes them to Amazon ECR.
+#
+# Setup (once): see docs/INSTALL_SECURITY_FIXES.md, "Image builds". Requires the repository
+# variable AWS_ROLE_ARN: an IAM role that GitHub can assume through OIDC and that may push to
+# the openreplay/* ECR repositories.
+name: Build security-fixes images
+
+on:
+  push:
+    branches: [security-fixes]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: security-fixes-images-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  build:
+    if: ${{ vars.AWS_ROLE_ARN != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: frontend
+            context: .
+            file: frontend/Dockerfile
+            build_args: ""
+          - name: assist
+            context: assist
+            file: assist/Dockerfile
+            build_args: ""
+          - name: chalice
+            context: api
+            file: api/Dockerfile
+            build_args: |
+              envarg=default-foss
+          - name: api
+            context: backend
+            file: backend/Dockerfile
+            build_args: |
+              SERVICE_NAME=api
+              ARCH=amd64
+          - name: images
+            context: backend
+            file: backend/Dockerfile
+            build_args: |
+              SERVICE_NAME=images
+              ARCH=amd64
+          - name: canvases
+            context: backend
+            file: backend/Dockerfile
+            build_args: |
+              SERVICE_NAME=canvases
+              ARCH=amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag
+        run: echo "IMAGE_TAG=sf-${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+            ${{ matrix.build_args }}
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/openreplay/${{ matrix.name }}:${{ env.IMAGE_TAG }}
+            ${{ steps.ecr.outputs.registry }}/openreplay/${{ matrix.name }}:security-fixes
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      - name: Summary
+        run: |
+          echo "### ${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '`${{ steps.ecr.outputs.registry }}/openreplay/${{ matrix.name }}:${{ env.IMAGE_TAG }}`' >> "$GITHUB_STEP_SUMMARY"
