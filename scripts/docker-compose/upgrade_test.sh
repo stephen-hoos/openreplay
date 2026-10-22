@@ -143,8 +143,44 @@ EOF
 	rm -rf "$root"
 }
 
+# Secrets introduced by the new release must not stay at their change_me_* placeholder.
+test_new_secrets_generated() {
+	local root; root="$(make_sandbox)"
+	cat >"$root/work/old.env" <<'EOF'
+COMMON_VERSION=v1.27.0
+COMMON_DOMAIN_NAME=replay.example.test
+COMMON_PG_PASSWORD=existing-password
+EOF
+	cat >"$root/work/common.env" <<'EOF'
+COMMON_VERSION=v1.28.0
+COMMON_DOMAIN_NAME=change_me_domain
+COMMON_PG_PASSWORD=change_me_pg_password
+COMMON_REDIS_PASSWORD=change_me_redis_password
+EOF
+
+	(
+		cd "$root/work" || exit 1
+		export PATH="$root/bin:$PATH"
+		original_env_file="old.env"
+		new_env_file="./common.env"
+		temp_env_file="$(mktemp)"
+		# shellcheck disable=SC1091
+		source ./upgrade.sh "old.env" >/dev/null 2>&1 || true
+		merge_envs
+		generate_new_secrets 2>/dev/null
+	)
+
+	local merged="$root/work/common.env"
+	grep -q 'change_me' "$merged" && fail "no change_me placeholder left" || pass "no change_me placeholder left"
+	grep -Eq '^COMMON_REDIS_PASSWORD=[0-9a-f]{20}$' "$merged" && pass "new secret generated" || fail "new secret generated"
+	grep -Fxq 'COMMON_PG_PASSWORD=existing-password' "$merged" && pass "existing secret kept" || fail "existing secret kept"
+	grep -Fxq 'COMMON_DOMAIN_NAME=replay.example.test' "$merged" && pass "domain kept" || fail "domain kept"
+	rm -rf "$root"
+}
+
 test_merge_sourceable
 test_merge_release_versions
+test_new_secrets_generated
 test_network_name
 test_compose_v2
 

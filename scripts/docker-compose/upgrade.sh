@@ -112,8 +112,19 @@ function migrate() {
 	done
 }
 
+# Secrets added in this release are not in the old env file and would otherwise stay at their
+# public change_me_* placeholder. Generate them, like install.sh does on first install.
+function generate_new_secrets() {
+	mapfile -t _tokens < <(grep -o 'change_me_[a-zA-Z0-9_]*' "$new_env_file" | grep -v '^change_me_domain$' | sort -u || true)
+	for token in "${_tokens[@]}"; do
+		sed -i "s/${token}/$(openssl rand -hex 10)/g" "$new_env_file"
+		log_message "Generated password for ${token}"
+	done
+}
+
 # Merge environment variables and perform migration
 merge_envs
+generate_new_secrets
 migrate
 
 # Load variables from common.env into the current shell's environment

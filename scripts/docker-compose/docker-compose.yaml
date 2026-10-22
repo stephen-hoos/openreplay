@@ -30,10 +30,10 @@ services:
           - clickhouse-openreplay-clickhouse.db.svc.cluster.local
     environment:
       CLICKHOUSE_USER: "default"
-      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_PASSWORD: "${COMMON_CH_PASSWORD}"
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
     healthcheck:
-      test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
+      test: ["CMD-SHELL", "clickhouse-client --password ${COMMON_CH_PASSWORD} --query 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -48,9 +48,9 @@ services:
         aliases:
           - redis-master.db.svc.cluster.local
     environment:
-      ALLOW_EMPTY_PASSWORD: "yes"
+      REDIS_PASSWORD: "${COMMON_REDIS_PASSWORD}"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=${COMMON_REDIS_PASSWORD} redis-cli ping | grep -q PONG"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -64,13 +64,13 @@ services:
       openreplay-net:
         aliases:
           - minio.db.svc.cluster.local
-    ports:
-      - 9001:9001
+    # The admin console uses the root S3 credentials: keep it off, and never publish it.
+    # To use it temporarily, enable it and reach it over an SSH tunnel with `ports: ["127.0.0.1:9001:9001"]`.
     environment:
       RUSTFS_ACCESS_KEY: ${COMMON_S3_KEY}
       RUSTFS_SECRET_KEY: ${COMMON_S3_SECRET}
       RUSTFS_ADDRESS: "0.0.0.0:9000"
-      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ENABLE: "false"
       RUSTFS_CONSOLE_ADDRESS: "0.0.0.0:9001"
       RUSTFS_VOLUMES: "/data"
     healthcheck:
