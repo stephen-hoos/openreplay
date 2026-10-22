@@ -492,12 +492,29 @@ def delete_member(user_id, tenant_id, id_to_delete):
     return {"data": get_members(tenant_id=tenant_id)}
 
 
+PASSWORD_POLICY = ("The password should have a minimum length of 8 characters and include at least one uppercase "
+                   "letter, one lowercase letter, one digit, and one special character.")
+
+
+def password_policy_error(password: str) -> Optional[str]:
+    """Server-side check of the policy the frontend enforces (App/validate.js validatePassword)."""
+    if len(password) < 8 \
+            or not any(c.islower() for c in password) \
+            or not any(c.isupper() for c in password) \
+            or not any(c.isdigit() for c in password) \
+            or all(c.isalnum() for c in password):
+        return PASSWORD_POLICY
+    return None
+
+
 def change_password(tenant_id, user_id, email, old_password, new_password):
     item = get_user(tenant_id=tenant_id, user_id=user_id)
     if item is None:
         return {"errors": ["access denied"]}
     if old_password == new_password:
         return {"errors": ["old and new password are the same"]}
+    if policy_error := password_policy_error(new_password):
+        return {"errors": [policy_error]}
     auth = authenticate(email, old_password, for_change_password=True)
     if auth is None:
         return {"errors": ["wrong password"]}

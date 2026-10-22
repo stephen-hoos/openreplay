@@ -34,8 +34,8 @@ async def create_tenant(data: schemas.UserSignupSchema):
     if helper.allow_captcha() and not captcha.is_valid(data.g_recaptcha_response):
         errors.append("Invalid captcha.")
 
-    if len(password) < 6:
-        errors.append("Password is too short, it must be at least 6 characters long.")
+    if policy_error := users.password_policy_error(password):
+        errors.append(policy_error)
 
 
 

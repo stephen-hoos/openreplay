@@ -4,7 +4,7 @@ from fastapi import BackgroundTasks
 
 import schemas
 from chalicelib.core import users
-from chalicelib.utils import email_helper, captcha, helper, smtp
+from chalicelib.utils import attempt_limiter, email_helper, captcha, helper, smtp
 from chalicelib.utils.log import sanitize
 
 logger = logging.getLogger(__name__)
@@ -16,6 +16,11 @@ def reset(data: schemas.ForgetPasswordPayloadSchema, background_tasks: Backgroun
         return {"errors": ["Invalid captcha."]}
     if not smtp.has_smtp():
         return {"errors": ["Email delivery failed due to invalid SMTP configuration. Please contact your admin."]}
+    # Same response either way, so the limit does not reveal whether the account exists.
+    if attempt_limiter.is_blocked("reset", data.email):
+        logger.warning(f"too many reset requests for [{sanitize(data.email)}], not sending")
+        return {"data": {"state": "A reset link will be sent if this email exists in our system."}}
+    attempt_limiter.record_failure("reset", data.email)
     a_user = users.get_by_email_only(data.email)
     if a_user:
         invitation_link = users.generate_new_invitation(user_id=a_user["userId"])

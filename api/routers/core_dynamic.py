@@ -12,7 +12,7 @@ from chalicelib.core import tenants, users, projects, license
 from chalicelib.core import webhook
 from chalicelib.core.collaborations.collaboration_slack import Slack
 from chalicelib.core.errors import errors, errors_details
-from chalicelib.utils import captcha, smtp
+from chalicelib.utils import attempt_limiter, captcha, smtp
 from chalicelib.utils import helper
 from chalicelib.utils.TimeUTC import TimeUTC
 from or_dependencies import OR_context, OR_role
@@ -77,17 +77,25 @@ def login_user(response: JSONResponse, data: schemas.UserLoginSchema = Body(...)
             detail="Invalid captcha."
         )
 
+    if attempt_limiter.is_blocked("login", data.email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts. Please try again later."
+        )
     r = users.authenticate(email=data.email, password=data.password.get_secret_value())
     if r is None:
+        attempt_limiter.record_failure("login", data.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="You've entered invalid Email or Password."
         )
     if "errors" in r:
+        attempt_limiter.record_failure("login", data.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=r["errors"][0]
         )
+    attempt_limiter.reset("login", data.email)
     r = __process_authentication_response(response=response, data=r)
     return r
 
@@ -220,6 +228,8 @@ def change_password_by_invitation(response: JSONResponse, data: schemas.EditPass
         return {"errors": ["invitation not found"]}
     if user["expiredChange"]:
         return {"errors": ["expired change, please re-use the invitation link"]}
+    if policy_error := users.password_policy_error(data.password.get_secret_value()):
+        return {"errors": [policy_error]}
 
     r = users.set_password_invitation(new_password=data.password.get_secret_value(), user_id=user["userId"])
     r = __process_authentication_response(response=response, data=r)
