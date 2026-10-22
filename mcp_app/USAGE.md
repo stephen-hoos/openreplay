@@ -289,7 +289,9 @@ server is working.
   appUrl?: string  // OpenReplay instance URL (optional, uses configured instance if omitted)
 }
 ```
-Returns immediately with an authorize URL; call `complete_login` after the user approves.
+Returns immediately with an authorize URL and a `userCode`. The user opens the URL, enters the
+code and approves; then call `complete_login`. Requires an OpenReplay version that supports the
+confirmation code.
 
 ### Tool: `login_jwt`
 ```typescript

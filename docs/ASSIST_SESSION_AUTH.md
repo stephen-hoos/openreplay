@@ -1,6 +1,6 @@
 # Assist Session Authentication
 
-This document explains how the Assist server authenticates tracker (session) connections, how to configure it, and how to roll it out.
+This document explains how the Assist server authenticates tracker (session) connections, how to configure it, and how to roll it out. It is part of the changes listed in [Security Fixes](SECURITY_FIXES.md).
 
 ## Overview
 

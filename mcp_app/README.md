@@ -84,8 +84,10 @@ if you didn't set `OPENREPLAY_URL` in the host config.
 Log in to OpenReplay
 ```
 
-You get an authorize URL to open yourself. Approve access in the OpenReplay tab and return
-to the app. Advanced users can authenticate with a raw JWT instead.
+You get an authorize URL to open yourself and a confirmation code (e.g. `ABCD-EFGH`). Open
+the URL, enter the code, approve access in the OpenReplay tab and return to the app. The code
+is never part of the URL, so only someone who started the sign-in in their own MCP client can
+approve it. Advanced users can authenticate with a raw JWT instead.
 
 ### 3. Explore analytics
 
@@ -215,6 +217,10 @@ the quirks worth knowing before changing anything.
   session URLs.
 - Browser login returns an authorize URL for you to open; the server never launches a
   browser process.
+- The authorize page requires the confirmation code shown by this client; the URL carries
+  only its SHA-256. Never enter a code that someone else sent you.
+- The token must be collected within `MCP_LOGIN_TIMEOUT_S` (default 300 s) of approval, and
+  is revoked when your OpenReplay password is changed or reset.
 - The configured instance URL must be `https`.
 - The replay iframe is sandboxed with `allow-same-origin` only — no `allow-scripts` — so a
   crafted recording cannot execute JavaScript.

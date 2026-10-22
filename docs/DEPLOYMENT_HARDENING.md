@@ -4,6 +4,8 @@ This document lists what to configure, beyond the defaults, to run a self-hosted
 
 Work through [Before go-live](#before-go-live) for every installation. [Recommended](#recommended) items matter most on shared clusters, AWS, or when the instance holds sensitive recordings.
 
+For the code changes behind the defaults below, see [Security Fixes](SECURITY_FIXES.md).
+
 ## Secure defaults
 
 The following are now part of the default install and need no action on a new installation. Existing installations pick them up as described in [Upgrading an existing installation](#upgrading-an-existing-installation).
