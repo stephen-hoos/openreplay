@@ -163,11 +163,17 @@ func (u *usersImpl) Get(authHeader, secret string, tokenType TokenType) (*User, 
 		iat = jwtInfo.IssuedAt.Unix()
 	}
 	cacheKey := fmt.Sprintf("%d:%d:%s:%d", jwtInfo.UserId, jwtInfo.TenantID, tokenType, iat)
+	if isMCP {
+		cacheKey += ":" + jwtInfo.ID
+	}
 	dbUser, err := u.getCachedUser(cacheKey)
 	if err != nil {
 		dbUser, err = getUserFromDB(u.conn, jwtInfo.UserId, jwtInfo.TenantID, tokenType)
 		if err != nil {
 			return nil, err
+		}
+		if isMCP && !mcpTokenActive(u.conn, jwtInfo.UserId, jwtInfo.ID) {
+			return nil, fmt.Errorf("token has been revoked")
 		}
 		u.userCache.Set(cacheKey, userCacheEntry{user: dbUser, fetchedAt: time.Now()})
 	}

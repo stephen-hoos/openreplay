@@ -18,3 +18,14 @@ func getUserFromDB(conn pool.Pool, userID, tenantID int, tokenType TokenType) (*
 	}
 	return user, nil
 }
+
+// mcpTokenActive reports whether an MCP token is still registered. Rows are deleted when the
+// user's password changes, which revokes every MCP client of that user.
+func mcpTokenActive(conn pool.Pool, userID int, jti string) bool {
+	var active bool
+	err := conn.QueryRow(`
+		SELECT EXISTS(SELECT 1
+		              FROM public.mcp_authentication_tokens
+		              WHERE user_id = $1 AND jti = $2 AND generated);`, userID, jti).Scan(&active)
+	return err == nil && active
+}

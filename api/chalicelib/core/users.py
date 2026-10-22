@@ -507,6 +507,13 @@ def password_policy_error(password: str) -> Optional[str]:
     return None
 
 
+def revoke_mcp_tokens(user_id: int):
+    """MCP clients keep a long-lived token: drop them when the user's credentials change."""
+    with pg_client.PostgresClient() as cur:
+        cur.execute(cur.mogrify("DELETE FROM public.mcp_authentication_tokens WHERE user_id = %(user_id)s;",
+                                {"user_id": user_id}))
+
+
 def change_password(tenant_id, user_id, email, old_password, new_password):
     item = get_user(tenant_id=tenant_id, user_id=user_id)
     if item is None:
@@ -520,6 +527,7 @@ def change_password(tenant_id, user_id, email, old_password, new_password):
         return {"errors": ["wrong password"]}
     changes = {"password": new_password}
     user = update(tenant_id=tenant_id, user_id=user_id, changes=changes)
+    revoke_mcp_tokens(user_id=user_id)
     r = authenticate(user['email'], new_password)
 
     return {
@@ -535,6 +543,7 @@ def change_password(tenant_id, user_id, email, old_password, new_password):
 def set_password_invitation(user_id, new_password):
     changes = {"password": new_password}
     user = update(tenant_id=-1, user_id=user_id, changes=changes)
+    revoke_mcp_tokens(user_id=user_id)
     r = authenticate(user['email'], new_password)
 
     return {

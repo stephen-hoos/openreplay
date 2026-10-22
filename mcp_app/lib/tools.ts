@@ -3,7 +3,7 @@ import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import net from "node:net";
 import dns from "node:dns/promises";
 import { z } from "zod";
-import { state, savePersistedState, clearPersistedState, generateAuthCode, assertHttpsUrl, allowMobUrls, isMobUrlAllowed } from "./state.js";
+import { state, savePersistedState, clearPersistedState, generateAuthCode, generateUserCode, assertHttpsUrl, allowMobUrls, isMobUrlAllowed } from "./state.js";
 import { makeApiRequest, fetchRecentSessions, fetchProjects, getProjectIdByName, fetchSessionReplay, fetchSessionEvents, fetchSessionsTimeseries, fetchPathAnalysis, fetchWebVitals, fetchTableData, fetchFunnel, resolveFilters, resolveFunnelSteps, getOrFetchFilters, fetchEvents, fetchUsers, fetchEventProperties, pollForAuth } from "./api.js";
 import {
   ConfigureBackendSchema,
@@ -1499,7 +1499,8 @@ export function registerInternalTools(server: McpServer) {
 
       const authCode = generateAuthCode();
       state.pendingAuthCode = authCode;
-      const authorizeUrl = `${appUrl}/mcp/authorize?state=${authCode}&client_id=${state.clientId}&app_name=${encodeURIComponent("OpenReplay MCP")}`;
+      const { userCode, codeChallenge } = generateUserCode();
+      const authorizeUrl = `${appUrl}/mcp/authorize?state=${authCode}&client_id=${state.clientId}&code_challenge=${codeChallenge}&app_name=${encodeURIComponent("OpenReplay MCP")}`;
 
       // The authorize URL is built from the validated instance host, so it is
       // guaranteed same-origin with the configured backend.
@@ -1515,11 +1516,12 @@ export function registerInternalTools(server: McpServer) {
             text: JSON.stringify({
               type: "auth_pending",
               authorizeUrl,
+              userCode,
               state: authCode,
               appUrl,
               message:
-                "Share this authorize URL with the user and ask them to open it in their browser " +
-                "and click 'Authorize'. Then call complete_login to finish.",
+                "Share this authorize URL and the confirmation code with the user. Ask them to open the URL " +
+                `in their browser, enter the code ${userCode} and click 'Authorize'. Then call complete_login to finish.`,
             }),
           },
         ],

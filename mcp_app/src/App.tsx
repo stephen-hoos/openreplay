@@ -17,6 +17,7 @@ function App() {
   const [appReady, setAppReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appUrl, setAppUrl] = useState('https://app.openreplay.com');
+  const [pendingLogin, setPendingLogin] = useState<{ authorizeUrl: string; userCode: string } | null>(null);
 
   const { app, isConnected, error: appError } = useApp({
     appInfo: {
@@ -128,6 +129,7 @@ function App() {
       if (!startData || startData.type === 'error') {
         throw new Error(startData?.error || 'login_browser did not return a valid response');
       }
+      setPendingLogin({ authorizeUrl: startData.authorizeUrl, userCode: startData.userCode });
 
       await logger.info(`Browser opened. Polling for approval...`);
 
@@ -143,6 +145,7 @@ function App() {
 
         const completeData = parseToolResult(completeResult);
         if (completeData?.type === 'auth_success') {
+          setPendingLogin(null);
           await logger.info('Browser login successful');
 
           setState(prev => ({
@@ -167,6 +170,7 @@ function App() {
       throw new Error('Browser login timed out after 5 minutes');
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Browser login failed';
+      setPendingLogin(null);
       await logger.error(`Browser login failed: ${errorMsg}`);
       setState(prev => ({
         ...prev,
@@ -222,6 +226,7 @@ function App() {
           appUrl={appUrl}
           setAppUrl={setAppUrl}
           onBrowserLogin={handleBrowserLogin}
+          pendingLogin={pendingLogin}
         />
       )}
 

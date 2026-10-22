@@ -5,6 +5,7 @@ interface AuthOverlayProps {
   appUrl: string;
   setAppUrl: (url: string) => void;
   onBrowserLogin: (appUrl: string) => Promise<void>;
+  pendingLogin: { authorizeUrl: string; userCode: string } | null;
 }
 
 function AuthOverlay({
@@ -12,6 +13,7 @@ function AuthOverlay({
   appUrl,
   setAppUrl,
   onBrowserLogin,
+  pendingLogin,
 }: AuthOverlayProps) {
   const [browserLoginPending, setBrowserLoginPending] = useState(false);
 
@@ -86,10 +88,19 @@ function AuthOverlay({
           {browserLoginPending ? 'Waiting for approval...' : 'Login with Browser'}
         </button>
 
-        {browserLoginPending && (
-          <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary, #6b7280)', textAlign: 'center', marginTop: '12px' }}>
-            A browser tab should open. Log in and approve access, then return here.
-          </p>
+        {browserLoginPending && pendingLogin && (
+          <div style={{ fontSize: '0.875rem', textAlign: 'center', marginTop: '12px' }}>
+            <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+              Open{' '}
+              <a href={pendingLogin.authorizeUrl} target="_blank" rel="noopener noreferrer">
+                this link
+              </a>
+              , log in, enter the confirmation code below and click Authorize. Then return here.
+            </p>
+            <p style={{ fontSize: '1.5rem', fontWeight: 600, letterSpacing: '0.1em', marginTop: '8px' }}>
+              {pendingLogin.userCode}
+            </p>
+          </div>
         )}
       </div>
     </div>

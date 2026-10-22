@@ -1,5 +1,5 @@
 import Logo from '@/layout/Logo';
-import { Button, Card } from 'antd';
+import { Button, Card, Input } from 'antd';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
@@ -15,10 +15,12 @@ function McpAuthorize() {
   const location = useLocation();
   const navigate = useNavigate();
   const [authorized, setAuthorized] = React.useState(false);
+  const [userCode, setUserCode] = React.useState('');
 
   const searchParams = new URLSearchParams(location.search);
   const state = searchParams.get('state');
   const clientId = searchParams.get('client_id');
+  const codeChallenge = searchParams.get('code_challenge');
 
   const openRoot = () => {
     navigate(withSiteId(sessions(), projectsStore.activeSiteId));
@@ -28,6 +30,8 @@ function McpAuthorize() {
       const response = await client.post('/v1/mcp/authorize', {
         state,
         clientId,
+        userCode,
+        codeChallenge,
       });
       const data = await response.json();
       if (data?.data?.success) {
@@ -70,8 +74,35 @@ function McpAuthorize() {
                 </div>
                 <div className="font-semibold mt-1">{accountName}</div>
               </div>
+              {codeChallenge ? (
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="text-sm">
+                    {t(
+                      'Enter the confirmation code shown by your MCP client. Only continue if you started this sign-in yourself, and never enter a code that someone sent you.',
+                    )}
+                  </div>
+                  <Input
+                    value={userCode}
+                    onChange={(e) => setUserCode(e.target.value)}
+                    placeholder="XXXX-XXXX"
+                    autoComplete="off"
+                    maxLength={16}
+                  />
+                </div>
+              ) : (
+                <div className="text-sm color-red">
+                  {t(
+                    'This authorization link is missing its confirmation code. Update your OpenReplay MCP client and start the sign-in again.',
+                  )}
+                </div>
+              )}
               <div className="flex flex-col items-center gap-2 w-full mt-2">
-                <Button type="primary" block onClick={handleAuthorize}>
+                <Button
+                  type="primary"
+                  block
+                  onClick={handleAuthorize}
+                  disabled={!codeChallenge || userCode.trim().length < 8}
+                >
                   {t('Authorize')}
                 </Button>
                 <Button block onClick={handleLogout}>

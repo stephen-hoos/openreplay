@@ -13,6 +13,8 @@ public_app, app, app_apikey = get_routers()
 def authorize_mcp_app(background_tasks: BackgroundTasks,
                       data: schemas.MCP.AuthorizeSchema = Body(...),
                       context: schemas.CurrentContext = Depends(OR_context)):
+    if not authorizers.user_code_matches(data):
+        return {"errors": ["The confirmation code does not match. Enter the code shown by your MCP client."]}
     authorizers.store_token_request(data=data, cotext=context)
     background_tasks.add_task(tracer.store_client_id,
                               user_id=context.user_id,

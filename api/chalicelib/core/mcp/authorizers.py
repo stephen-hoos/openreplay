@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 
 import jwt
@@ -12,7 +14,8 @@ from schemas import schemas, MCP
 logger = logging.getLogger(__name__)
 
 AUDIENCE = "mcp:OpenReplay"
-MCP_LOGIN_TIMEOUT_S = config("MCP_LOGIN_TIMEOUT_S", cast=int, default=0)
+# How long after the user approves in the browser the MCP client may collect its token (0 = no limit).
+MCP_LOGIN_TIMEOUT_S = config("MCP_LOGIN_TIMEOUT_S", cast=int, default=300)
 
 
 def get_supported_audience():
@@ -70,6 +73,15 @@ def generate_jwt(user_id, tenant_id, iat, jti, client_id):
     return token
 
 
+def normalize_user_code(user_code: str) -> str:
+    return "".join(c for c in user_code.upper() if c.isalnum())
+
+
+def user_code_matches(data: MCP.AuthorizeSchema) -> bool:
+    digest = hashlib.sha256(normalize_user_code(data.user_code).encode()).hexdigest()
+    return hmac.compare_digest(digest, data.code_challenge)
+
+
 def store_token_request(data: MCP.AuthorizeSchema, cotext: schemas.CurrentContext):
     with pg_client.PostgresClient() as cur:
         query = cur.mogrify(
@@ -101,7 +113,8 @@ def get_token_by_state(client_id, state):
 
     if row is None:
         raise HTTPException(status_code=404, detail="State not found or token already generated")
-    if MCP_LOGIN_TIMEOUT_S > 0 and (row["iat"] + MCP_LOGIN_TIMEOUT_S) >= TimeUTC.now():
+    # iat is in seconds, TimeUTC.now() in milliseconds.
+    if MCP_LOGIN_TIMEOUT_S > 0 and TimeUTC.now() // 1000 > row["iat"] + MCP_LOGIN_TIMEOUT_S:
         raise HTTPException(status_code=408, detail="Login timed out")
 
     return generate_jwt(user_id=row["user_id"], tenant_id=row["tenant_id"], iat=row["iat"], client_id=client_id, jti=row["jti"])

@@ -159,6 +159,23 @@ export function generateAuthCode(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+// Unambiguous characters for a code the user reads and types (no 0/O, 1/I/L, U).
+const USER_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+
+// Confirmation code the user must type on the authorize page. Only its hash goes in the
+// authorize link, so a link started by someone else cannot be approved by just clicking it.
+export function generateUserCode(): { userCode: string; codeChallenge: string } {
+  let code = "";
+  for (const byte of crypto.randomBytes(8)) {
+    code += USER_CODE_ALPHABET[byte % USER_CODE_ALPHABET.length];
+  }
+  return {
+    userCode: `${code.slice(0, 4)}-${code.slice(4)}`,
+    // Matches the API's normalization: uppercase, letters and digits only.
+    codeChallenge: crypto.createHash("sha256").update(code).digest("hex"),
+  };
+}
+
 // Validate and normalize a user/model-supplied OpenReplay instance URL.
 // Only https URLs are accepted — the value flows into authorize URLs and API
 // requests, so a non-http(s) or malformed value must be rejected at the source.
