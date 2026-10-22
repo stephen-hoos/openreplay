@@ -580,7 +580,7 @@ function mapTabs(tabs: Record<string, TabSessionManager>) {
   return tabMap;
 }
 
-function handleSprites(
+export function handleSprites(
   potentialSpriteMap: Record<string, any>,
   parser: DOMParser,
   msg: Record<string, any>,
